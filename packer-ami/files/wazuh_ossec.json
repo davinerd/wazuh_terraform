@@ -1,0 +1,119 @@
+{
+  "min_packer_version": "0.12.0",
+  "variables"         : {
+    "aws_profile"          : "{{env `AWS_PROFILE`}}"
+  },
+  "builders": [
+    {
+    "profile"          : "{{user `aws_profile`}}",
+    "ami_name"         : "wazuh-amzn-{{isotime | clean_ami_name}}",
+    "name"             : "wazuh-ossec",
+    "ami_description"  : "An Amazon Linux AMI with Wazuh OSSEC.",
+    "instance_type"    : "t2.micro",
+    "type"             : "amazon-ebs",
+    "source_ami_filter": {
+      "filters": {
+        "virtualization-type"             : "hvm",
+        "architecture"                    : "x86_64",
+        "name"                            : "*amzn-ami-hvm-*",
+        "block-device-mapping.volume-type": "gp2",
+        "root-device-type"                : "ebs"
+      },
+      "owners"     : ["amazon"],
+      "most_recent": true
+    },
+    "encrypt_boot" : true,
+    "ssh_username": "ec2-user",
+    "tags": {
+      "Service": "wazuh"
+    }
+  }
+],
+  "provisioners": [
+    {
+      "type"       : "file",
+      "source"     : "./files/wazuh.repo",
+      "destination": "/tmp/wazuh.repo"
+    },
+    {
+      "type"       : "file",
+      "source"     : "./files/wazuh",
+      "destination": "/tmp/wazuh"
+    },
+    {
+      "type"    : "shell",
+      "inline"  : [
+        "sudo mv /tmp/wazuh.repo /etc/yum.repos.d/wazuh.repo",
+        "sudo mv /tmp/wazuh /etc/logrotate.d/wazuh"
+      ]
+    },
+    {
+      "type"    : "shell",
+      "inline"  : [
+        "curl --silent --location https://rpm.nodesource.com/setup_6.x | sudo bash -"
+      ]
+    },
+    {
+      "type"    : "shell",
+      "inline"  : [
+        "sudo yum -y update",
+        "sudo yum install -y jq git wazuh-manager nodejs wazuh-api",
+        "sudo service wazuh-manager stop",
+        "sudo service wazuh-api stop"
+      ]
+    },
+    {
+      "type"    : "shell",
+      "inline"  : [
+        "sudo sed  -i 's/udp/tcp/' /var/ossec/etc/ossec.conf"
+      ]
+    },
+    {
+      "type" : "shell",
+      "inline" : [
+        "git clone https://github.com/nozaq/amazon-linux-cis.git",
+        "sudo python amazon-linux-cis/__main__.py",
+        "rm -rf amazon-linux-cis",
+        "sudo yum erase -y git"
+      ]
+    },
+    {
+      "type"    : "shell",
+      "inline"  : [
+        "wget -q -O - https://d1wk0tztpsntt1.cloudfront.net/linux/latest/install | sudo bash"
+      ]
+    },
+    {
+      "type"    : "shell",
+      "inline"  : [
+        "wget -q https://nxlog.co/system/files/products/files/348/nxlog-ce-2.10.2102-1_rhel6.x86_64.rpm && sudo yum --nogpgcheck -y localinstall nxlog-ce-2.10.2102-1_rhel6.x86_64.rpm && rm -rf nxlog-ce-2.10.2102-1_rhel6.x86_64.rpm"
+      ]
+    },
+    {
+      "type"    : "shell",
+      "inline"  : [
+        "sudo iptables -A INPUT -p tcp --dport 55000 -m state --state NEW -j ACCEPT",
+        "sudo iptables -A INPUT -p tcp --dport 1514 -m state --state NEW -j ACCEPT",
+        "sudo service iptables save"
+      ]
+    },
+    {
+      "type"    : "shell",
+      "inline"  : [
+        "(sudo crontab -l 2>/dev/null; echo '@weekly root cd /var/ossec/bin && ./update_ruleset -r') | sudo crontab"
+      ]
+    },
+    {
+      "type"    : "shell",
+      "inline"  : [
+        "sudo chkconfig sendmail off",
+        "sudo chkconfig nfslock off",
+        "sudo chkconfig rpcbind off",
+        "sudo chkconfig rpcgssd off",
+        "sudo chkconfig ip6tables off",
+        "sudo chkconfig nxlog off",
+        "sudo chkconfig wazuh-manager off"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+OSSEC_DIR="/var/ossec"
+SRV_ADDR="127.0.0.1"
+
+mv confs/nxlog.conf /etc/
+
+if ! [ -d /etc/ssl/priv ]; then
+	mkdir /etc/ssl/priv
+fi
+
+mv confs/nxlog-ca-cert.crt /etc/ssl/certs/
+mv confs/syslog-client-cert.crt /etc/ssl/certs/
+mv confs/syslog-client-key.key /etc/ssl/priv/
+
+chmod 644 /etc/ssl/certs/*
+chmod 640 /etc/ssl/priv/*
+
+# by default port is 514 and format is syslog
+sed -i "s/.*<\/global>.*/&\n\n<syslog_output>\n\t<server>$SRV_ADDR<\/server>\n<\/syslog_output>/" ${OSSEC_DIR}/etc/ossec.conf
+
+/etc/init.d/nxlog restart
+${OSSEC_DIR}/bin/ossec-control enable client-syslog
+/etc/init.d/wazuh-manager restart

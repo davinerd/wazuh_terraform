@@ -1,0 +1,13 @@
+/var/ossec/logs/ossec.log
+/var/ossec/logs/api.log {
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    dateext
+    daily
+    rotate 7
+    maxage 30
+    create 0640 root root
+}
